@@ -1,0 +1,7 @@
+[telegram]
+api_id =
+api_hash =
+bot_token =
+
+[follow]
+list = [10000]
