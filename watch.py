@@ -60,6 +60,8 @@ class Watcher:
         self.watch_list = watch_list
 
     def init_handler(self) -> None:
+        self.human.add_handler(MessageHandler(self.watch_media, filters.group
+                                              & filters.text & filters.user(self.watch_list)))
         self.human.add_handler(MessageHandler(self.watch_text, filters.group
                                               & filters.text & filters.user(self.watch_list)))
 
@@ -83,10 +85,30 @@ class Watcher:
         await self.bot.send_message(self.user_id, self.paste(msg), parse_mode='html')
         raise ContinuePropagation
 
+    async def watch_media(self, _client: Client, msg: Message) -> None:
+        await self.bot.send_message(self.user_id, self.paste_media(msg), parse_mode='html')
+        raise ContinuePropagation
+
     @staticmethod
     def paste(msg: Message) -> str:
         return f'<b>{msg.from_user.first_name}</b><a href="http://t.me/{- msg.chat.id + 1000000000000}/' \
                f'{msg.message_id}">: {msg.text[:20]}'
+
+    @staticmethod
+    def paste_media(msg: Message) -> str:
+        return f'<b>{msg.from_user.first_name}</b><a href="http://t.me/{- msg.chat.id + 1000000000000}/' \
+               f'{msg.message_id}">: sent a {Watcher.get_media_type(msg)}'
+
+    @staticmethod
+    def get_media_type(msg: Message) -> str:
+       return 'photo' if msg.photo else \
+           'video' if msg.video else \
+               'animation' if msg.animation else \
+                   'sticker' if msg.sticker else \
+                       'voice' if msg.voice else \
+                           'document' if msg.document else \
+                               'audio' if msg.audio else \
+                                   'contact' if msg.contact else 'error'
 
 
 async def main():
@@ -102,8 +124,11 @@ async def main():
 if __name__ == '__main__':
     try:
         import coloredlogs
-        coloredlogs.install()
+
+        coloredlogs.install(logging.DEBUG, fmt='%(asctime)s,%(msecs)03d - %(levelname)s - %(name)s - '
+                                               '%(funcName)s - %(lineno)d - %(message)s')
     except ModuleNotFoundError:
-        logging.basicConfig()
+        logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - '
+                                                        '%(name)s - %(funcName)s - %(lineno)d - %(message)s')
     logging.getLogger('pyrogram').setLevel(logging.WARNING)
     asyncio.get_event_loop().run_until_complete(main())
