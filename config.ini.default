@@ -2,6 +2,7 @@
 api_id =
 api_hash =
 bot_token =
+owner =
 
 [follow]
 list = [10000]
