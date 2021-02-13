@@ -96,34 +96,34 @@ class Watcher:
 
     async def watch_text(self, _client: Client, msg: Message) -> None:
         async with self.lock:
-            await self.last_message.send_message(self.paste(msg))
+            await self.last_message.send_message(paste(msg))
         raise ContinuePropagation
 
     async def watch_media(self, _client: Client, msg: Message) -> None:
         async with self.lock:
-            await self.last_message.send_message(self.paste_media(msg))
+            await self.last_message.send_message(paste_media(msg))
         raise ContinuePropagation
 
-    @staticmethod
-    def paste(msg: Message) -> str:
-        return f'<b>{msg.from_user.first_name}</b><a href="http://t.me/{- msg.chat.id + 1000000000000}/' \
-               f'{msg.message_id}">: {msg.text[:20]}'
 
-    @staticmethod
-    def paste_media(msg: Message) -> str:
-        return f'<b>{msg.from_user.first_name}</b><a href="http://t.me/{- msg.chat.id + 1000000000000}/' \
-               f'{msg.message_id}">: sent a {Watcher.get_media_type(msg)}'
+def paste(msg: Message) -> str:
+    return f'<b>{msg.from_user.first_name}</b><a href="http://t.me/{- msg.chat.id + 1000000000000}/' \
+           f'{msg.message_id}">: {msg.text[:20]}'
 
-    @staticmethod
-    def get_media_type(msg: Message) -> str:
-        return 'photo' if msg.photo else \
-            'video' if msg.video else \
-            'animation' if msg.animation else \
-            'sticker' if msg.sticker else \
-            'voice' if msg.voice else \
-            'document' if msg.document else \
-            'audio' if msg.audio else \
-            'contact' if msg.contact else 'error'
+
+def paste_media(msg: Message) -> str:
+    return f'<b>{msg.from_user.first_name}</b><a href="http://t.me/{- msg.chat.id + 1000000000000}/' \
+           f'{msg.message_id}">: sent a {get_media_type(msg)}'
+
+
+def get_media_type(msg: Message) -> str:
+    return 'photo' if msg.photo else \
+        'video' if msg.video else \
+        'animation' if msg.animation else \
+        'sticker' if msg.sticker else \
+        'voice' if msg.voice else \
+        'document' if msg.document else \
+        'audio' if msg.audio else \
+        'contact' if msg.contact else 'error'
 
 
 async def main():
