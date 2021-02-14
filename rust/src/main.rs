@@ -18,14 +18,16 @@
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 mod functions;
+mod configure;
 
 use simple_logger::SimpleLogger;
 use tokio::{runtime, task};
+use functions::Result;
 
-async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = functions::telegram::try_connect(
-        env!("TG_ID").parse().expect("TG_ID invalid"),
-        env!("TG_HASH"),
+async fn async_main(config: configure::configparser::Configure) -> Result<()> {
+    let client = functions::telegram::try_connect(
+        config.api_id,
+        &config.api_hash,
         "data/human.session").await?;
     let mut handle = client.handle();
     let network_handle = task::spawn(async move { client.run_until_disconnected().await });
@@ -34,7 +36,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn main() -> functions::telegram::Result<()> {
+fn main() -> Result<()> {
     SimpleLogger::new()
         .with_level(log::LevelFilter::Debug)
         .init()
@@ -45,7 +47,7 @@ fn main() -> functions::telegram::Result<()> {
         .enable_all()
         .build()
         .unwrap()
-        .block_on(async_main())?;
+        .block_on(async_main(configure::configparser::Configure::new("data/config.toml")?))?;
 
     Ok(())
 }
