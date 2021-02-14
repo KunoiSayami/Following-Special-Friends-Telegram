@@ -20,9 +20,51 @@
 mod functions;
 mod configure;
 
+use grammers_client::{Client, ClientHandle, Config, InitParams, Update, UpdateIter};
 use simple_logger::SimpleLogger;
 use tokio::{runtime, task};
 use functions::Result;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+fn get_current_timestamp() -> u128 {
+    let start = std::time::SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Time went backwards");
+    since_the_epoch.as_millis()
+}
+
+struct LastSend {
+    timestamp: u128
+}
+
+struct SpecialFollowing {
+    objects: HashMap<u64, Arc<Mutex<LastSend>>>
+}
+
+impl LastSend {
+
+    fn check(&self) -> bool {
+        get_current_timestamp() - self.timestamp < 60
+    }
+
+    fn update(&mut self) {
+        self.timestamp = get_current_timestamp();
+    }
+}
+
+async fn handle_update(mut client: ClientHandle, updates: UpdateIter) -> Result<()> {
+    for update in updates {
+        match update {
+            Update::NewMessage(message) => {
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
 
 async fn async_main(config: configure::configparser::Configure) -> Result<()> {
     let client = functions::telegram::try_connect(
