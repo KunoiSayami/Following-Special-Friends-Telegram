@@ -57,7 +57,7 @@ pub(crate) mod configparser {
         pub(crate) api_hash: String,
         pub(crate) bot_token: String,
         pub(crate) owner: i32,
-        following: HashSet<i32>
+        pub(crate) following: HashSet<i32>
     }
 
     impl Configure {
@@ -74,9 +74,6 @@ pub(crate) mod configparser {
             })
         }
 
-        pub fn check_id_in_following(&self, id: i32)  -> bool {
-            self.following.contains(&id)
-        }
     }
 
 

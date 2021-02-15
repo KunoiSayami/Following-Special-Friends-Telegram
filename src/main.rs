@@ -27,6 +27,7 @@ use functions::Result;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use grammers_client::types::Chat;
+use log::{error, info};
 
 fn get_current_timestamp() -> u128 {
     let start = std::time::SystemTime::now();
@@ -36,40 +37,20 @@ fn get_current_timestamp() -> u128 {
     since_the_epoch.as_millis()
 }
 
-struct LastSend {
-    timestamp: u128
-}
-
-struct SpecialFollowing {
-    owner: i32,
-    list: HashSet<i32>,
-    objects: HashMap<i32, Arc<Mutex<LastSend>>>
-}
-
-impl LastSend {
-
-    fn check(&self) -> bool {
-        get_current_timestamp() - self.timestamp < 60
-    }
-
-    fn update(&mut self) {
-        self.timestamp = get_current_timestamp();
-    }
-}
-
-async fn handle_update(mut client: ClientHandle, updates: UpdateIter, special_list: &SpecialFollowing) -> Result<()> {
+async fn handle_update(mut client: ClientHandle,
+                       updates: UpdateIter,
+                       special_list: HashSet<i32>,
+                       owner: i32,
+                       last_send_lock: Arc<Mutex<HashMap<i32, u128>>>) -> Result<()> {
     for update in updates {
         match update {
             Update::NewMessage(message) => {
                 match message.sender() {
                     Some(chat) => {
                         let sender = chat.id();
-                        if special_list.list.contains(&sender) {
-                            let arc = special_list.objects.get(&sender)
-                                .expect(format!("ID: {} not in objects hashmap", sender).as_str())
-                                .clone();
-                            let mut last_send = arc.lock().unwrap();
-                            last_send.timestamp = get_current_timestamp();
+                        info!("Get sender id: {}", sender);
+                        if special_list.contains(&sender) {
+                            let mut last_send = last_send_lock.lock().unwrap();
                             // TODO: send message to owner
                         }
                     }
@@ -84,14 +65,43 @@ async fn handle_update(mut client: ClientHandle, updates: UpdateIter, special_li
 }
 
 async fn async_main(config: configure::configparser::Configure) -> Result<()> {
-    let client = functions::telegram::try_connect(
+    let mut client = functions::telegram::try_connect(
         config.api_id,
         &config.api_hash,
         "data/human.session").await?;
+    let mut bot_client = functions::telegram::try_connect_bot(
+        config.api_id,
+        &config.api_hash,
+        "data/bot.session",
+        &config.bot_token
+    ).await?;
+
+    let last_update = Arc::new(Mutex::new({
+        let mut map: HashMap<i32, u128> = Default::default();
+        config.following.clone().iter().map(|x| {
+            map.insert(*x, 0);
+        });
+        map
+    }));
+    let hashset_list = (&config.following).clone();
+    let owner = config.owner.to_owned();
+
     let mut handle = client.handle();
-    let network_handle = task::spawn(async move { client.run_until_disconnected().await });
+    //let network_handle = task::spawn(async move { client.run_until_disconnected().await })
+    while let Some(updates) = client.next_updates().await? {
+        let bot_handle = bot_client.handle();
+        let special_list = hashset_list.clone();
+        let last_update = last_update.clone();
+        task::spawn(async move {
+            match handle_update(bot_handle, updates, special_list, owner, last_update).await {
+                Ok(_) => {}
+                Err(e) => error!("Error handling updates: {}", e)
+            }
+        });
+        bot_client.session().save()?;
+    }
     handle.disconnect().await;
-    network_handle.await??;
+    //network_handle.await??;
     Ok(())
 }
 
