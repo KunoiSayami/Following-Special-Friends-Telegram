@@ -24,8 +24,9 @@ use grammers_client::{Client, ClientHandle, Config, InitParams, Update, UpdateIt
 use simple_logger::SimpleLogger;
 use tokio::{runtime, task};
 use functions::Result;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
+use grammers_client::types::Chat;
 
 fn get_current_timestamp() -> u128 {
     let start = std::time::SystemTime::now();
@@ -40,7 +41,9 @@ struct LastSend {
 }
 
 struct SpecialFollowing {
-    objects: HashMap<u64, Arc<Mutex<LastSend>>>
+    owner: i32,
+    list: HashSet<i32>,
+    objects: HashMap<i32, Arc<Mutex<LastSend>>>
 }
 
 impl LastSend {
@@ -54,10 +57,24 @@ impl LastSend {
     }
 }
 
-async fn handle_update(mut client: ClientHandle, updates: UpdateIter) -> Result<()> {
+async fn handle_update(mut client: ClientHandle, updates: UpdateIter, special_list: &SpecialFollowing) -> Result<()> {
     for update in updates {
         match update {
             Update::NewMessage(message) => {
+                match message.sender() {
+                    Some(chat) => {
+                        let sender = chat.id();
+                        if special_list.list.contains(&sender) {
+                            let arc = special_list.objects.get(&sender)
+                                .expect(format!("ID: {} not in objects hashmap", sender).as_str())
+                                .clone();
+                            let mut last_send = arc.lock().unwrap();
+                            last_send.timestamp = get_current_timestamp();
+                            // TODO: send message to owner
+                        }
+                    }
+                    _ => {}
+                }
             }
             _ => {}
         }

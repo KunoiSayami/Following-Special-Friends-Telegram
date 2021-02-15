@@ -21,6 +21,7 @@ pub(crate) mod configparser {
     use serde_derive::Deserialize;
     use std::path::Path;
     use crate::functions::Result;
+    use std::collections::HashSet;
 
 
     #[derive(Deserialize)]
@@ -28,12 +29,12 @@ pub(crate) mod configparser {
         api_id: i32,
         api_hash: String,
         bot_token: String,
-        owner: i64
+        owner: i32
     }
 
     #[derive(Deserialize)]
     struct _Following {
-        list: Vec<u64>
+        list: Vec<i32>
     }
 
     #[derive(Deserialize)]
@@ -55,32 +56,26 @@ pub(crate) mod configparser {
         pub(crate) api_id: i32,
         pub(crate) api_hash: String,
         pub(crate) bot_token: String,
-        pub(crate) owner: i64,
-        pub(crate) following: Vec<u64>
+        pub(crate) owner: i32,
+        following: HashSet<i32>
     }
 
     impl Configure {
         pub fn new<P: AsRef<Path>>(path: P) -> Result<Configure> {
             let _configure = _Configure::new(path)?;
-            /*let mut following_list: Vec<i128> = Default::default();
-            if _configure.follow.list.contains(',') {
-                let splits = _configure.follow.list.split(',');
-                splits.collect::<Vec<String>>().iter().map(|x| {
-                    let id: i128 = x.trim().parse()?;
-                    following_list.push(id);
-                } );
-            } else {
-                following_list.push({
-                    _configure.follow.list.clone().trim().parse()?
-                })
-            }*/
+            let mut set: HashSet<i32> = Default::default();
+            _configure.follow.list.iter().map(|x| set.insert(*x));
             Ok(Configure{
                 api_id: _configure.telegram.api_id,
                 api_hash: _configure.telegram.api_hash,
                 bot_token: _configure.telegram.bot_token,
                 owner: _configure.telegram.owner,
-                following: _configure.follow.list
+                following: set
             })
+        }
+
+        pub fn check_id_in_following(&self, id: i32)  -> bool {
+            self.following.contains(&id)
         }
     }
 
