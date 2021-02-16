@@ -28,7 +28,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use grammers_client::types::{Chat, Message};
 use log::{error, debug, info};
-use std::convert::TryInto;
+use crossbeam_channel::{bounded, tick, Receiver, select};
 
 fn get_current_timestamp() -> u128 {
     let start = std::time::SystemTime::now();
@@ -108,6 +108,16 @@ async fn handle_update(updates: UpdateIter,
     Ok(())
 }
 
+// https://rust-cli.github.io/book/in-depth/signals.html
+fn ctrl_channel() -> Result<Receiver<()>> {
+    let (sender, receiver) = bounded(100);
+    ctrlc::set_handler(move || {
+        let _ = sender.send(());
+    })?;
+
+    Ok(receiver)
+}
+
 async fn async_main(config: configure::configparser::Configure) -> Result<()> {
     let mut client = functions::telegram::try_connect(
         config.api_id,
@@ -124,6 +134,7 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
     }));
     let hashset_list = (&config.following).clone();
     let owner = config.owner.to_owned();
+    let ctrl_c_events = ctrl_channel()?;
 
     let mut handle = client.handle();
     //let network_handle = task::spawn(async move { client.run_until_disconnected().await })
@@ -137,6 +148,12 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
         match handle_update(updates, special_list, &bot_configure, &last_update).await {
             Ok(_) => {}
             Err(e) => error!("Error handling updates: {}", e)
+        }
+
+        select! {
+            recv(ctrl_c_events) -> _ => {
+                break;
+            }
         }
     }
     handle.disconnect().await;
