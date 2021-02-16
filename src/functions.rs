@@ -20,6 +20,7 @@
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 pub(crate) mod telegram {
 
+    use serde_derive::Serialize;
     use grammers_client::{Client, Config, SignInError, InitParams};
     use grammers_session::FileSession;
     use std::env;
@@ -110,4 +111,20 @@ pub(crate) mod telegram {
 
         Ok(client)
     }
+
+    #[derive(Serialize)]
+    pub struct SendMessageParameters {
+        chat_id: i32,
+        text: String,
+        parse_mode: String
+    }
+
+    impl SendMessageParameters {
+        pub fn new<T>(chat_id: i32, text: T) -> SendMessageParameters
+            where T: Into<String> {
+            SendMessageParameters{chat_id, text: text.into(), parse_mode: String::from("markdown")}
+        }
+    }
+
+
 }

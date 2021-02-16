@@ -29,7 +29,8 @@ pub(crate) mod configparser {
         api_id: i32,
         api_hash: String,
         bot_token: String,
-        owner: i32
+        owner: i32,
+        api_address: Option<String>
     }
 
     #[derive(Deserialize)]
@@ -57,7 +58,8 @@ pub(crate) mod configparser {
         pub(crate) api_hash: String,
         pub(crate) bot_token: String,
         pub(crate) owner: i32,
-        pub(crate) following: HashSet<i32>
+        pub(crate) following: HashSet<i32>,
+        pub(crate) api_address: String,
     }
 
     impl Configure {
@@ -70,7 +72,11 @@ pub(crate) mod configparser {
                 api_hash: _configure.telegram.api_hash,
                 bot_token: _configure.telegram.bot_token,
                 owner: _configure.telegram.owner,
-                following: set
+                following: set,
+                api_address: match _configure.telegram.api_address {
+                    Some(address) => address,
+                    None => String::from("https://api.telegram.org")
+                }
             })
         }
 
