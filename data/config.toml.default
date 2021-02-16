@@ -1,0 +1,9 @@
+[telegram]
+api_id = 0
+api_hash = ""
+bot_token = ""
+owner = 0
+api_address = "https://api.telegram.org"
+
+[follow]
+list = [0]
