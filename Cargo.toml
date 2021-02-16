@@ -13,3 +13,6 @@ log = "0.4.14"
 serde_derive = "1.0.123"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
+rand = "0.8"
+grammers-tl-gen = { git = "https://github.com/Lonami/grammers" }
+grammers-tl-types = { git = "https://github.com/Lonami/grammers" }

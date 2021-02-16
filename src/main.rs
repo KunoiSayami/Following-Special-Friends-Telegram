@@ -28,6 +28,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use grammers_client::types::Chat;
 use log::{error, info};
+use rand::Rng;
+use std::convert::TryInto;
 
 fn get_current_timestamp() -> u128 {
     let start = std::time::SystemTime::now();
@@ -40,18 +42,40 @@ fn get_current_timestamp() -> u128 {
 async fn handle_update(mut client: ClientHandle,
                        updates: UpdateIter,
                        special_list: HashSet<i32>,
-                       owner: i32,
-                       last_send_lock: Arc<Mutex<HashMap<i32, u128>>>) -> Result<()> {
+                       owner: i32) -> Result<()> {
     for update in updates {
         match update {
             Update::NewMessage(message) => {
+                match message.chat() {
+                    Chat::User(_) => {}
+                    Chat::Group(_) => {}
+                    Chat::Channel(_) => {}
+                }
                 match message.sender() {
                     Some(chat) => {
                         let sender = chat.id();
                         info!("Get sender id: {}", sender);
-                        if special_list.contains(&sender) {
-                            let mut last_send = last_send_lock.lock().unwrap();
+                        if !special_list.contains(&sender) {
+                            info!("Trying send message");
                             // TODO: send message to owner
+                            let req = grammers_tl_types::functions::messages::SendMessage{
+                                no_webpage: false,
+                                silent: false,
+                                background: false,
+                                clear_draft: false,
+                                peer: grammers_tl_types::enums::InputPeer::from(
+                                    grammers_tl_types::types::InputPeerUser{
+                                        user_id: owner,
+                                        access_hash: 0
+                                    }),
+                                reply_to_msg_id: None,
+                                message: String::from("test"),
+                                random_id: get_current_timestamp().try_into().unwrap(),
+                                reply_markup: None,
+                                entities: None,
+                                schedule_date: None
+                            };
+                            client.invoke(&req).await?;
                         }
                     }
                     _ => {}
@@ -91,9 +115,8 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
     while let Some(updates) = client.next_updates().await? {
         let bot_handle = bot_client.handle();
         let special_list = hashset_list.clone();
-        let last_update = last_update.clone();
         task::spawn(async move {
-            match handle_update(bot_handle, updates, special_list, owner, last_update).await {
+            match handle_update(bot_handle, updates, special_list, owner).await {
                 Ok(_) => {}
                 Err(e) => error!("Error handling updates: {}", e)
             }
