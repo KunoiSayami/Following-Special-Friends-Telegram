@@ -20,7 +20,8 @@
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 pub(crate) mod telegram {
 
-    use grammers_client::{Client, Config, SignInError};
+    use serde_derive::Serialize;
+    use grammers_client::{Client, Config, SignInError, InitParams};
     use grammers_session::FileSession;
     use std::env;
     use std::io::{self, BufRead as _, Write as _w};
@@ -49,17 +50,27 @@ pub(crate) mod telegram {
         _try_connect(api_id, api_hash, session_name, None).await
     }
 
+    fn get_init_params<T>(device_model: T) -> InitParams
+        where T: Into<String> {
+        InitParams{
+            device_model: device_model.into(),
+            // https://stackoverflow.com/a/62409338
+            system_version: format!("{} {} {}", env::consts::OS, env::consts::FAMILY, env::consts::ARCH),
+            ..Default::default()
+        }
+    }
+
     async fn _try_connect(api_id: i32, api_hash: &str, session_name: &str, bot_token: Option<&str>) -> Result<Client<FileSession>> {
         let mut client = Client::connect(Config {
             session: FileSession::load_or_create(session_name)?,
             api_id,
             api_hash: api_hash.to_string(),
-            params: Default::default(),
+            // https://stackoverflow.com/a/27841363
+            params: get_init_params(option_env!("CARGO_PKG_NAME").unwrap_or("unknown")),
         })
             .await?;
 
         if !client.is_authorized().await? {
-            println!("Signing in...");
             match bot_token {
                 None => {
                     let phone = console_prompt("Enter your phone number: ")?;
@@ -100,4 +111,20 @@ pub(crate) mod telegram {
 
         Ok(client)
     }
+
+    #[derive(Serialize)]
+    pub struct SendMessageParameters {
+        chat_id: i32,
+        text: String,
+        parse_mode: String
+    }
+
+    impl SendMessageParameters {
+        pub fn new<T>(chat_id: i32, text: T) -> SendMessageParameters
+            where T: Into<String> {
+            SendMessageParameters{chat_id, text: text.into(), parse_mode: String::from("markdown")}
+        }
+    }
+
+
 }
