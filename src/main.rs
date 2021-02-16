@@ -20,15 +20,14 @@
 mod functions;
 mod configure;
 
-use grammers_client::{Client, ClientHandle, Config, InitParams, Update, UpdateIter};
+use grammers_client::{Update, UpdateIter};
 use simple_logger::SimpleLogger;
-use tokio::{runtime, task};
+use tokio::runtime;
 use functions::Result;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use grammers_client::types::{Chat, Message};
 use log::{error, debug, info};
-use rand::Rng;
 use std::convert::TryInto;
 
 fn get_current_timestamp() -> u128 {
@@ -49,7 +48,7 @@ impl BotConfigure {
     async fn send_message(&self, text: String) -> Result<()>{
         let client = reqwest::Client::new();
         let post_data = functions::telegram::SendMessageParameters::new(self.owner, text);
-        client.post(self.basic_api_address.as_str())
+        client.post(format!("{}/bot{}/sendMessage", self.basic_api_address, self.bot_token).as_str())
             .json(&post_data)
             .send()
             .await?;
@@ -58,14 +57,14 @@ impl BotConfigure {
 }
 
 
-fn build_message_string(message: &Message, chat_id: i32, user_id: i32) -> String {
+fn build_message_string(message: &Message, chat_id: i32, user_name: &str) -> String {
     // TODO: message type support
     /*let type_string = if let Some(media) = message.media() {
 
     }*/
     let message_type = if message.media().is_none() {"text"} else {"media"};
     let message_id = message.id();
-    format!("{} send a [{}](https://t.me/{}/{}) message", user_id, message_type, chat_id, message_id)
+    format!("{} send a [{}](https://t.me/c/{}/{}) message", user_name, message_type, chat_id, message_id)
 }
 
 async fn handle_update(updates: UpdateIter,
@@ -84,13 +83,13 @@ async fn handle_update(updates: UpdateIter,
                                 info!("Get sender id: {}", sender);
                                 if special_list.contains(&sender) {
                                     info!("Trying send message");
-                                    let s = build_message_string(&message, chat.id(), sender);
+                                    let s = build_message_string(&message, chat.id(), user.name());
                                     {
                                         let mut last_send = lock.lock().unwrap();
                                         let timestamp = last_send.get_mut(&sender).unwrap();
                                         let last_time = get_current_timestamp();
-                                        if *timestamp - last_time > 60 {
-                                            bot.send_message(s);
+                                        if last_time - *timestamp > 60 {
+                                            bot.send_message(s).await?;
                                             *timestamp = get_current_timestamp();
                                         }
                                     }
@@ -117,10 +116,10 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
 
     let last_update = Arc::new(Mutex::new({
         let mut map: HashMap<i32, u128> = Default::default();
-        config.following.clone().iter().map(|x| {
-            map.insert(*x, 0);
-            debug!("Insert {} to following list", *x);
-        });
+        for x in config.following.clone() {
+            map.insert(x, 0);
+            debug!("Insert {} to following list", x);
+        }
         map
     }));
     let hashset_list = (&config.following).clone();

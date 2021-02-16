@@ -66,7 +66,10 @@ pub(crate) mod configparser {
         pub fn new<P: AsRef<Path>>(path: P) -> Result<Configure> {
             let _configure = _Configure::new(path)?;
             let mut set: HashSet<i32> = Default::default();
-            _configure.follow.list.iter().map(|x| set.insert(*x));
+            for id in _configure.follow.list {
+                set.insert(id);
+            }
+            //println!("len {}", set.len());
             Ok(Configure{
                 api_id: _configure.telegram.api_id,
                 api_hash: _configure.telegram.api_hash,
