@@ -260,7 +260,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "following-special-friends-tg"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "crossbeam-channel",
  "ctrlc",

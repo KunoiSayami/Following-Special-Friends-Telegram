@@ -3,8 +3,8 @@ api_id = 0
 api_hash = ""
 bot_token = ""
 owner = 0
-# User can specify their own server build from https://github.com/tdlib/telegram-bot-api
-api_address = "https://api.telegram.org"
+# Optional: User can specify their own server build from https://github.com/tdlib/telegram-bot-api
+# api_address = "https://api.telegram.org"
 
 [follow]
-list = [0]
+list = []

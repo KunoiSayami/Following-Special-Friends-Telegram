@@ -1,5 +1,36 @@
 # Following-Special-Friends-Telegram
 
+A bot that can monitor specify user send message to your common group
+
+## Configure
+
+Copy `config.toml.default` to `config.toml`, this configure file should store in `data` folder
+```toml
+[telegram]
+# If you don't have api_id and api_hash, obtain them from https://my.telegram.org/apps
+api_id = 0
+api_hash = ""
+# You can create bot from [@Botfather](https://t.me/botfather)
+# Please note: You should contact your bot with your owner account use `/start` command at least once
+bot_token = ""
+# Set as your own telegram user ID
+owner = 0
+# Optional: User can specify their own server build from https://github.com/tdlib/telegram-bot-api
+# api_address = "https://api.telegram.org"
+
+[follow]
+# Insert your following user id to this list
+list = []
+```
+
+## Build
+
+Just use cargo to build.
+
+```shell
+cargo build --relase
+```
+
 ## License
 
 [![](https://www.gnu.org/graphics/agplv3-155x51.png)](https://www.gnu.org/licenses/agpl-3.0.txt)

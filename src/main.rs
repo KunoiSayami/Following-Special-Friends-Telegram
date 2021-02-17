@@ -22,13 +22,15 @@ mod configure;
 
 use grammers_client::{Update, UpdateIter};
 use simple_logger::SimpleLogger;
-use tokio::runtime;
+use tokio::{runtime, task};
+use tokio::sync::Mutex;
 use functions::Result;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
 use grammers_client::types::{Chat, Message};
 use log::{error, debug, info};
-use crossbeam_channel::{bounded, tick, Receiver, select};
+use crossbeam_channel::{bounded, Receiver, select};
+use std::borrow::Borrow;
+use std::sync::Arc;
 
 fn get_current_timestamp() -> u128 {
     let start = std::time::SystemTime::now();
@@ -38,6 +40,7 @@ fn get_current_timestamp() -> u128 {
     since_the_epoch.as_millis()
 }
 
+#[derive(Clone)]
 struct BotConfigure {
     basic_api_address: String,
     bot_token: String,
@@ -85,15 +88,16 @@ async fn handle_update(updates: UpdateIter,
                                     info!("Trying send message");
                                     let s = build_message_string(&message, chat.id(), user.name());
                                     {
-                                        let mut last_send = lock.lock().unwrap();
+                                        let mut last_send = lock.lock().await;
                                         let timestamp = last_send.get_mut(&sender).unwrap();
+                                        println!("Current value: {}", *timestamp);
                                         let last_time = get_current_timestamp();
-                                        if last_time - *timestamp > 60 {
+                                        if last_time - *timestamp > 60000 {
+                                            info!("Send message successful");
                                             bot.send_message(s).await?;
                                             *timestamp = get_current_timestamp();
                                         }
                                     }
-                                    info!("Send message successful");
                                 }
                             }
                             _ => {}
@@ -124,6 +128,7 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
         &config.api_hash,
         "data/human.session").await?;
 
+
     let last_update = Arc::new(Mutex::new({
         let mut map: HashMap<i32, u128> = Default::default();
         for x in config.following.clone() {
@@ -143,19 +148,27 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
         basic_api_address: config.api_address.clone(),
         owner
     };
+
+    let mut tasks = vec![];
+
     while let Some(updates) = client.next_updates().await? {
         let special_list = hashset_list.clone();
-        match handle_update(updates, special_list, &bot_configure, &last_update).await {
-            Ok(_) => {}
-            Err(e) => error!("Error handling updates: {}", e)
-        }
-
-        select! {
-            recv(ctrl_c_events) -> _ => {
-                break;
+        let config = bot_configure.clone();
+        let last_update_lock = Arc::clone(&last_update);
+        tasks.push(task::spawn(async move {
+            match handle_update(updates, special_list, &config, &last_update_lock).await {
+                Ok(_) => {}
+                Err(e) => error!("Error handling updates: {}", e)
             }
-        }
+        }));
+        //client.session().save()?;
     }
+
+
+    for task in tasks {
+        task.await?;
+    }
+
     handle.disconnect().await;
     //network_handle.await??;
     Ok(())
