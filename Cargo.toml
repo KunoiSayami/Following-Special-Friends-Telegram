@@ -1,6 +1,6 @@
 [package]
-name = "following-special-friends-tg"
-version = "0.9.1"
+name = "special-friends"
+version = "0.9.3"
 authors = ["KunoiSayami <46131041+KunoiSayami@users.noreply.github.com>"]
 edition = "2018"
 

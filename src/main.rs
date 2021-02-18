@@ -84,14 +84,16 @@ async fn handle_update(updates: UpdateIter,
                                 let sender = user.id();
                                 info!("Get sender id: {}", sender);
                                 if special_list.contains(&sender) {
-                                    info!("Trying send message");
+                                    if message.text().is_empty() && message.media().is_none() {
+                                        continue
+                                    }
                                     let s = build_message_string(&message, chat.id(), user.name());
                                     {
                                         let mut last_send = lock.lock().await;
                                         let timestamp = last_send.get_mut(&sender).unwrap();
-                                        println!("Current value: {}", *timestamp);
+                                        debug!("Last send message timestamp: {}", *timestamp);
                                         let last_time = get_current_timestamp();
-                                        if last_time - *timestamp > 60000 {
+                                        if last_time - *timestamp > 0 {
                                             info!("Send message successful");
                                             bot.send_message(s).await?;
                                             *timestamp = get_current_timestamp();
