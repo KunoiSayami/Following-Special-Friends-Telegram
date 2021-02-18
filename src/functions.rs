@@ -42,9 +42,9 @@ pub(crate) mod telegram {
         Ok(line)
     }
 
-    pub async fn try_connect_bot(api_id: i32, api_hash: &str, session_name: &str, bot_token: &str) -> Result<Client<FileSession>> {
+    /*pub async fn try_connect_bot(api_id: i32, api_hash: &str, session_name: &str, bot_token: &str) -> Result<Client<FileSession>> {
         _try_connect(api_id, api_hash, session_name, Some(bot_token)).await
-    }
+    }*/
 
     pub async fn try_connect(api_id: i32, api_hash: &str, session_name: &str) -> Result<Client<FileSession>> {
         _try_connect(api_id, api_hash, session_name, None).await

@@ -20,16 +20,15 @@
 mod functions;
 mod configure;
 
-use grammers_client::{Update, UpdateIter};
+use grammers_client::{Update, UpdateIter, ClientHandle};
 use simple_logger::SimpleLogger;
 use tokio::{runtime, task};
 use tokio::sync::Mutex;
+use tokio::signal::unix::{signal, SignalKind};
 use functions::Result;
 use std::collections::{HashMap, HashSet};
 use grammers_client::types::{Chat, Message};
 use log::{error, debug, info};
-use crossbeam_channel::{bounded, Receiver, select};
-use std::borrow::Borrow;
 use std::sync::Arc;
 
 fn get_current_timestamp() -> u128 {
@@ -112,14 +111,16 @@ async fn handle_update(updates: UpdateIter,
     Ok(())
 }
 
-// https://rust-cli.github.io/book/in-depth/signals.html
-fn ctrl_channel() -> Result<Receiver<()>> {
-    let (sender, receiver) = bounded(100);
-    ctrlc::set_handler(move || {
-        let _ = sender.send(());
-    })?;
+async fn ctrl_c_handler(mut handle: ClientHandle) -> Result<()> {
 
-    Ok(receiver)
+    let mut stream = signal(SignalKind::interrupt())?;
+    loop {
+        stream.recv().await;
+        info!("got SIGINT");
+        handle.disconnect().await;
+        debug!("Break from loop");
+        break Ok(())
+    }
 }
 
 async fn async_main(config: configure::configparser::Configure) -> Result<()> {
@@ -137,12 +138,10 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
         }
         map
     }));
-    let hashset_list = (&config.following).clone();
+    let hashset_list = config.following.clone();
     let owner = config.owner.to_owned();
-    let ctrl_c_events = ctrl_channel()?;
 
-    let mut handle = client.handle();
-    //let network_handle = task::spawn(async move { client.run_until_disconnected().await })
+    let handle = client.handle();
     let bot_configure = BotConfigure{
         bot_token: config.bot_token.clone(),
         basic_api_address: config.api_address.clone(),
@@ -150,6 +149,12 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
     };
 
     let mut tasks = vec![];
+    let _signal_task = task::spawn(async move {
+        match ctrl_c_handler(handle).await {
+            Ok(_) => {}
+            Err(e) => error!("Error start signal listener: {}", e)
+        }
+    });
 
     while let Some(updates) = client.next_updates().await? {
         let special_list = hashset_list.clone();
@@ -161,7 +166,7 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
                 Err(e) => error!("Error handling updates: {}", e)
             }
         }));
-        //client.session().save()?;
+        client.session().save()?;
     }
 
 
@@ -169,8 +174,8 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
         task.await?;
     }
 
-    handle.disconnect().await;
-    //network_handle.await??;
+    //signal_task.await?;
+
     Ok(())
 }
 
