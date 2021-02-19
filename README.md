@@ -21,6 +21,8 @@ owner = 0
 [follow]
 # Insert your following user id to this list
 list = []
+# Optional: Override send message duration (in seconds)
+# duration = 60
 ```
 
 ## Build

@@ -72,7 +72,8 @@ fn build_message_string(message: &Message, chat_id: i32, user_name: &str) -> Str
 async fn handle_update(updates: UpdateIter,
                        special_list: HashSet<i32>,
                        bot: &BotConfigure,
-                       lock: &Arc<Mutex<HashMap<i32, u128>>>
+                       lock: &Arc<Mutex<HashMap<i32, u128>>>,
+                       duration: u128
 ) -> Result<()> {
     for update in updates {
         match update {
@@ -93,7 +94,7 @@ async fn handle_update(updates: UpdateIter,
                                         let timestamp = last_send.get_mut(&sender).unwrap();
                                         debug!("Last send message timestamp: {}", *timestamp);
                                         let last_time = get_current_timestamp();
-                                        if last_time - *timestamp > 0 {
+                                        if last_time - *timestamp > duration * 1000 {
                                             info!("Send message successful");
                                             bot.send_message(s).await?;
                                             *timestamp = get_current_timestamp();
@@ -120,7 +121,7 @@ async fn ctrl_c_handler(mut handle: ClientHandle) -> Result<()> {
         stream.recv().await;
         info!("got SIGINT");
         handle.disconnect().await;
-        debug!("Break from loop");
+        debug!("Break from ctrl c handler loop");
         break Ok(())
     }
 }
@@ -142,6 +143,7 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
     }));
     let hashset_list = config.following.clone();
     let owner = config.owner.to_owned();
+    let duration = config.duration.to_owned();
 
     let handle = client.handle();
     let bot_configure = BotConfigure{
@@ -163,7 +165,7 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
         let config = bot_configure.clone();
         let last_update_lock = Arc::clone(&last_update);
         tasks.push(task::spawn(async move {
-            match handle_update(updates, special_list, &config, &last_update_lock).await {
+            match handle_update(updates, special_list, &config, &last_update_lock, duration).await {
                 Ok(_) => {}
                 Err(e) => error!("Error handling updates: {}", e)
             }

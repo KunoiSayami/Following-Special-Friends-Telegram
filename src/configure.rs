@@ -35,7 +35,8 @@ pub(crate) mod configparser {
 
     #[derive(Deserialize)]
     struct _Following {
-        list: Vec<i32>
+        list: Vec<i32>,
+        duration: Option<u64>
     }
 
     #[derive(Deserialize)]
@@ -60,6 +61,7 @@ pub(crate) mod configparser {
         pub(crate) owner: i32,
         pub(crate) following: HashSet<i32>,
         pub(crate) api_address: String,
+        pub(crate) duration: u128,
     }
 
     impl Configure {
@@ -74,7 +76,8 @@ pub(crate) mod configparser {
                 api_address: match _configure.telegram.api_address {
                     Some(address) => address,
                     None => String::from("https://api.telegram.org")
-                }
+                },
+                duration: _configure.follow.duration.unwrap_or(60) as u128
             })
         }
 

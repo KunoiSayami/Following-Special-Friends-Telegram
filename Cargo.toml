@@ -1,6 +1,6 @@
 [package]
 name = "special-friends"
-version = "0.9.3"
+version = "0.9.4"
 authors = ["KunoiSayami <46131041+KunoiSayami@users.noreply.github.com>"]
 edition = "2018"
 
