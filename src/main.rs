@@ -59,14 +59,22 @@ impl BotConfigure {
 }
 
 
-fn build_message_string(message: &Message, chat_id: i32, user_name: &str) -> String {
+
+fn build_message_string(message: &Message, chat_id: i32, user_id: i32, user_name: &str) -> String {
     // TODO: message type support
     /*let type_string = if let Some(media) = message.media() {
 
     }*/
     let message_type = if message.media().is_none() {"text"} else {"media"};
     let message_id = message.id();
-    format!("{} send a [{}](https://t.me/c/{}/{}) message", user_name, message_type, chat_id, message_id)
+    format!(
+        "[{}](tg://user?id={}) send a [{}](https://t.me/c/{}/{}) message",
+        user_name,
+        user_id,
+        message_type,
+        chat_id,
+        message_id
+    )
 }
 
 async fn handle_update(updates: UpdateIter,
@@ -88,7 +96,7 @@ async fn handle_update(updates: UpdateIter,
                                     if message.text().is_empty() && message.media().is_none() {
                                         continue
                                     }
-                                    let s = build_message_string(&message, chat.id(), user.name());
+                                    let s = build_message_string(&message, chat.id(), user.id(),user.name());
                                     {
                                         let mut last_send = lock.lock().await;
                                         let timestamp = last_send.get_mut(&sender).unwrap();
@@ -178,7 +186,6 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
         task.await?;
     }
 
-    //signal_task.await?;
 
     Ok(())
 }

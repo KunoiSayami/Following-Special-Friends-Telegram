@@ -1,6 +1,6 @@
 [package]
 name = "special-friends"
-version = "0.9.4"
+version = "1.0.0"
 authors = ["KunoiSayami <46131041+KunoiSayami@users.noreply.github.com>"]
 edition = "2018"
 
@@ -9,7 +9,7 @@ grammers-client = { git = "https://github.com/Lonami/grammers" }
 grammers-session = { git = "https://github.com/Lonami/grammers" }
 tokio = { version = "1", features = ["full"] }
 simple_logger = "1.11.0"
-log = "0.4.14"
+log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug"] }
 serde_derive = "1.0.123"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
