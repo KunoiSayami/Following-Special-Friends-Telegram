@@ -1,6 +1,6 @@
 [package]
 name = "special-friends"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["KunoiSayami <46131041+KunoiSayami@users.noreply.github.com>"]
 edition = "2018"
 
@@ -16,3 +16,6 @@ toml = "0.5"
 grammers-tl-gen = { git = "https://github.com/Lonami/grammers" }
 grammers-tl-types = { git = "https://github.com/Lonami/grammers" }
 reqwest = { version = "0.11", features = ["socks", "serde_json", "json"] }
+
+[target.aarch64-unknown-linux-musl.dependencies]
+openssl = { version = "0.10", features = ["vendored"] }

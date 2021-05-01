@@ -1,0 +1,59 @@
+name: Build binary
+
+on:
+  push:
+    tags:
+      - v**
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        job:
+          - { os: macos-latest }
+          - { os: ubuntu-latest }
+          - { os: windows-latest }
+
+
+    name: Build
+    runs-on: ${{ matrix.job.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - name: Rename binary
+        id: rename
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            BIN='special-friends_linux_amd64'
+            mv target/release/special-friends target/release/$BIN
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            BIN='special-friends_darwin_amd64'
+            mv target/release/special-friends target/release/$BIN
+          else
+            BIN='special-friends_windows_amd64.exe'
+            mv target/release/special-friends.exe target/release/$BIN
+          fi
+          echo "::set-output name=bin::target/release/$BIN"
+      - uses: actions/upload-artifact@v2
+        with:
+          name: artifact
+          path: |
+            target/release/special-friends_*
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ steps.rename.outputs.bin }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

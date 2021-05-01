@@ -22,7 +22,7 @@ pub(crate) mod telegram {
 
     use serde_derive::Serialize;
     use grammers_client::{Client, Config, SignInError, InitParams};
-    use grammers_session::FileSession;
+    use grammers_session::Session;
     use std::env;
     use std::io::{self, BufRead as _, Write as _w};
     use crate::functions::Result;
@@ -46,8 +46,8 @@ pub(crate) mod telegram {
         _try_connect(api_id, api_hash, session_name, Some(bot_token)).await
     }*/
 
-    pub async fn try_connect(api_id: i32, api_hash: &str, session_name: &str) -> Result<Client<FileSession>> {
-        _try_connect(api_id, api_hash, session_name, None).await
+    pub async fn try_connect(api_id: i32, api_hash: &str, session_path: &str) -> Result<Client> {
+        _try_connect(api_id, api_hash, session_path, None).await
     }
 
     fn get_init_params<T>(device_model: T) -> InitParams
@@ -60,9 +60,10 @@ pub(crate) mod telegram {
         }
     }
 
-    async fn _try_connect(api_id: i32, api_hash: &str, session_name: &str, bot_token: Option<&str>) -> Result<Client<FileSession>> {
+    async fn _try_connect(api_id: i32, api_hash: &str, session_path: &str, bot_token: Option<&str>) -> Result<Client> {
+        //let session_file_path = Path::new("data").join(format!("{}.session", session_name));
         let mut client = Client::connect(Config {
-            session: FileSession::load_or_create(session_name)?,
+            session: Session::load_file_or_create(session_path.clone())?,
             api_id,
             api_hash: api_hash.to_string(),
             // https://stackoverflow.com/a/27841363
@@ -97,10 +98,10 @@ pub(crate) mod telegram {
                 }
             }
 
-            match client.session().save() {
+            match client.session().save_to_file(session_path) {
                 Ok(_) => {}
                 Err(e) => {
-                    client.handle().sign_out_disconnect().await?;
+                    client.sign_out_disconnect().await?;
                     panic!(
                         "NOTE: failed to save the session, will sign out now: {}",
                         e

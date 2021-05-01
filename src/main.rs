@@ -20,14 +20,13 @@
 mod functions;
 mod configure;
 
-use grammers_client::{Update, UpdateIter, ClientHandle};
+use grammers_client::{Update, UpdateIter};
 use simple_logger::SimpleLogger;
 use tokio::{runtime, task};
 use tokio::sync::Mutex;
-use tokio::signal::unix::{signal, SignalKind};
 use functions::Result;
 use std::collections::{HashMap, HashSet};
-use grammers_client::types::{Chat, Message};
+use grammers_client::types::{Chat, Message, Media};
 use log::{error, debug, info};
 use std::sync::Arc;
 
@@ -62,16 +61,23 @@ impl BotConfigure {
 
 fn build_message_string(message: &Message, chat_id: i32, user_id: i32, user_name: &str) -> String {
     // TODO: message type support
-    /*let type_string = if let Some(media) = message.media() {
-
-    }*/
-    let message_type = if message.media().is_none() {"text"} else {"media"};
+    let type_string = if let Some(media) = message.media() {
+        match media {
+            Media::Photo(_) => "photo",
+            Media::Document(_) => "document",
+            Media::Sticker(_) => "sticker",
+            _ => "unsupported media",
+        }
+    } else {
+        "text"
+    };
+    //let message_type = if message.media().is_none() {"text"} else {type_string};
     let message_id = message.id();
     format!(
         "[{}](tg://user?id={}) send a [{}](https://t.me/c/{}/{}) message",
         user_name,
         user_id,
-        message_type,
+        type_string,
         chat_id,
         message_id
     )
@@ -122,20 +128,9 @@ async fn handle_update(updates: UpdateIter,
     Ok(())
 }
 
-async fn ctrl_c_handler(mut handle: ClientHandle) -> Result<()> {
-
-    let mut stream = signal(SignalKind::interrupt())?;
-    loop {
-        stream.recv().await;
-        info!("got SIGINT");
-        handle.disconnect().await;
-        debug!("Break from ctrl c handler loop");
-        break Ok(())
-    }
-}
 
 async fn async_main(config: configure::configparser::Configure) -> Result<()> {
-    let mut client = functions::telegram::try_connect(
+    let client = functions::telegram::try_connect(
         config.api_id,
         &config.api_hash,
         "data/human.session").await?;
@@ -153,7 +148,6 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
     let owner = config.owner.to_owned();
     let duration = config.duration.to_owned();
 
-    let handle = client.handle();
     let bot_configure = BotConfigure{
         bot_token: config.bot_token.clone(),
         basic_api_address: config.api_address.clone(),
@@ -161,14 +155,11 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
     };
 
     let mut tasks = vec![];
-    let _signal_task = task::spawn(async move {
-        match ctrl_c_handler(handle).await {
-            Ok(_) => {}
-            Err(e) => error!("Error start signal listener: {}", e)
-        }
-    });
 
-    while let Some(updates) = client.next_updates().await? {
+    while let Some(updates) = tokio::select! {
+        _ = tokio::signal::ctrl_c() => Ok(None),
+        result = client.next_updates() => result,
+    }? {
         let special_list = hashset_list.clone();
         let config = bot_configure.clone();
         let last_update_lock = Arc::clone(&last_update);
@@ -178,7 +169,6 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
                 Err(e) => error!("Error handling updates: {}", e)
             }
         }));
-        client.session().save()?;
     }
 
 

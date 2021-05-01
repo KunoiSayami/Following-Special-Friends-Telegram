@@ -1,0 +1,36 @@
+name: Build cross binary
+
+on:
+  push:
+    tags:
+      - v**
+  pull_request:
+
+jobs:
+  build_aarch64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-unknown-linux-musl
+          override: true
+      - name: Build aarch 64 binary
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --target aarch64-unknown-linux-musl --release
+      - run: mv target/aarch64-unknown-linux-musl/release/special-friends target/aarch64-unknown-linux-musl/release/special-friends_linux_aarch64
+      - uses: actions/upload-artifact@v2
+        with:
+          name: aarch64-artifact
+          path: target/aarch64-unknown-linux-musl/release/special-friends_linux_aarch64
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/aarch64-unknown-linux-musl/release/special-friends_linux_aarch64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
