@@ -1,5 +1,7 @@
 # Following-Special-Friends-Telegram
 
+## DUE TO MY ACCOUNT GOT TELEGRAM BANNED, THIS PROJECT IS NO LONGER MAINTENANCE
+
 A bot that can monitor specify user send message to your common group
 
 ## Configure
