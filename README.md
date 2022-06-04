@@ -30,7 +30,7 @@ list = []
 Just use cargo to build.
 
 ```shell
-cargo build --relase
+cargo build --release
 ```
 
 ## License
