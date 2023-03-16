@@ -17,7 +17,7 @@
  ** You should have received a copy of the GNU Affero General Public License
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-pub(crate) mod configparser {
+mod configparser {
     use serde_derive::Deserialize;
     use std::path::Path;
     use crate::functions::Result;
@@ -35,7 +35,7 @@ pub(crate) mod configparser {
 
     #[derive(Deserialize)]
     struct _Following {
-        list: Vec<i32>,
+        list: Vec<i64>,
         duration: Option<u64>
     }
 
@@ -55,13 +55,13 @@ pub(crate) mod configparser {
     }
 
     pub struct Configure {
-        pub(crate) api_id: i32,
-        pub(crate) api_hash: String,
-        pub(crate) bot_token: String,
-        pub(crate) owner: i32,
-        pub(crate) following: HashSet<i32>,
-        pub(crate) api_address: String,
-        pub(crate) duration: u128,
+        api_id: i32,
+        api_hash: String,
+        bot_token: String,
+        owner: i32,
+        following: HashSet<i64>,
+        api_address: String,
+        duration: u128,
     }
 
     impl Configure {
@@ -81,7 +81,28 @@ pub(crate) mod configparser {
             })
         }
 
+        pub fn api_id(&self) -> i32 {
+            self.api_id
+        }
+        pub fn api_hash(&self) -> &str {
+            &self.api_hash
+        }
+        pub fn bot_token(&self) -> &str {
+            &self.bot_token
+        }
+        pub fn owner(&self) -> i32 {
+            self.owner
+        }
+        pub fn following(&self) -> &HashSet<i64> {
+            &self.following
+        }
+        pub fn api_address(&self) -> &str {
+            &self.api_address
+        }
+        pub fn duration(&self) -> u128 {
+            self.duration
+        }
     }
-
-
 }
+
+pub use configparser::Configure;

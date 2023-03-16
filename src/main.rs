@@ -20,8 +20,7 @@
 mod functions;
 mod configure;
 
-use grammers_client::{Update, UpdateIter};
-use simple_logger::SimpleLogger;
+use grammers_client::{Update};
 use tokio::{runtime, task};
 use tokio::sync::Mutex;
 use functions::Result;
@@ -29,14 +28,8 @@ use std::collections::{HashMap, HashSet};
 use grammers_client::types::{Chat, Message, Media};
 use log::{error, debug, info};
 use std::sync::Arc;
+use kstool::prelude::get_current_timestamp;
 
-fn get_current_timestamp() -> u128 {
-    let start = std::time::SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("Time went backwards");
-    since_the_epoch.as_millis()
-}
 
 #[derive(Clone)]
 struct BotConfigure {
@@ -59,7 +52,7 @@ impl BotConfigure {
 
 
 
-fn build_message_string(message: &Message, chat_id: i32, user_id: i32, user_name: &str) -> String {
+fn build_message_string(message: &Message, chat_id: i64, user_id: i64, user_name: &str) -> String {
     // TODO: message type support
     let type_string = if let Some(media) = message.media() {
         match media {
@@ -83,13 +76,12 @@ fn build_message_string(message: &Message, chat_id: i32, user_id: i32, user_name
     )
 }
 
-async fn handle_update(updates: UpdateIter,
-                       special_list: HashSet<i32>,
+async fn handle_update(update: Update,
+                       special_list: HashSet<i64>,
                        bot: &BotConfigure,
-                       lock: &Arc<Mutex<HashMap<i32, u128>>>,
+                       lock: &Arc<Mutex<HashMap<i64, u128>>>,
                        duration: u128
 ) -> Result<()> {
-    for update in updates {
         match update {
             Update::NewMessage(message) => {
                 match message.chat() {
@@ -100,7 +92,7 @@ async fn handle_update(updates: UpdateIter,
                                 info!("Get sender id: {}", sender);
                                 if special_list.contains(&sender) {
                                     if message.text().is_empty() && message.media().is_none() {
-                                        continue
+                                        return Ok(())
                                     }
                                     let s = build_message_string(&message, chat.id(), user.id(),user.name());
                                     {
@@ -123,34 +115,33 @@ async fn handle_update(updates: UpdateIter,
             }
             _ => {}
         }
-    }
 
     Ok(())
 }
 
 
-async fn async_main(config: configure::configparser::Configure) -> Result<()> {
+async fn async_main(config: configure::Configure) -> Result<()> {
     let client = functions::telegram::try_connect(
-        config.api_id,
-        &config.api_hash,
+        config.api_id(),
+        &config.api_hash(),
         "data/human.session").await?;
 
 
     let last_update = Arc::new(Mutex::new({
-        let mut map: HashMap<i32, u128> = Default::default();
-        for x in config.following.clone() {
+        let mut map: HashMap<i64, u128> = Default::default();
+        for x in config.following().clone() {
             map.insert(x, 0);
             debug!("Insert {} to following list", x);
         }
         map
     }));
-    let hashset_list = config.following.clone();
-    let owner = config.owner.to_owned();
-    let duration = config.duration.to_owned();
+    let hashset_list = config.following().clone();
+    let owner = config.owner().to_owned();
+    let duration = config.duration().to_owned();
 
     let bot_configure = BotConfigure{
-        bot_token: config.bot_token.clone(),
-        basic_api_address: config.api_address.clone(),
+        bot_token: config.bot_token().to_string(),
+        basic_api_address: config.api_address().to_string(),
         owner
     };
 
@@ -158,7 +149,7 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
 
     while let Some(updates) = tokio::select! {
         _ = tokio::signal::ctrl_c() => Ok(None),
-        result = client.next_updates() => result,
+        result = client.next_update() => result,
     }? {
         let special_list = hashset_list.clone();
         let config = bot_configure.clone();
@@ -181,17 +172,15 @@ async fn async_main(config: configure::configparser::Configure) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    SimpleLogger::new()
-        .with_level(log::LevelFilter::Debug)
-        .init()
-        .unwrap();
 
+    env_logger::Builder::from_default_env()
+        .init();
 
     runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
-        .block_on(async_main(configure::configparser::Configure::new("data/config.toml")?))?;
+        .block_on(async_main(configure::Configure::new("data/config.toml")?))?;
 
     Ok(())
 }

@@ -62,7 +62,7 @@ pub(crate) mod telegram {
 
     async fn _try_connect(api_id: i32, api_hash: &str, session_path: &str, bot_token: Option<&str>) -> Result<Client> {
         //let session_file_path = Path::new("data").join(format!("{}.session", session_name));
-        let mut client = Client::connect(Config {
+        let client = Client::connect(Config {
             session: Session::load_file_or_create(session_path.clone())?,
             api_id,
             api_hash: api_hash.to_string(),
