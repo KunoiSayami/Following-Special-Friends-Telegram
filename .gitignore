@@ -7,6 +7,6 @@ target/
 **/*.rs.bk
 
 .idea/
-data/*
-!data/*.default
 .vscode/
+config.toml
+*.session

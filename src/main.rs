@@ -21,6 +21,7 @@ mod configure;
 mod functions;
 
 use crate::configure::prelude::*;
+use clap::arg;
 use grammers_client::types::{Chat, Media, Message};
 use grammers_client::Update;
 use kstool::prelude::get_current_timestamp;
@@ -131,9 +132,9 @@ async fn message_handler(
     Ok(())
 }
 
-async fn async_main(config: Configure) -> anyhow::Result<()> {
+async fn async_main(config: Configure, session_path: String) -> anyhow::Result<()> {
     let client =
-        functions::telegram::try_connect(config.api_id(), &config.api_hash(), "data/human.session")
+        functions::telegram::try_connect(config.api_id(), &config.api_hash(), &session_path)
             .await?;
 
     let hashset_list = Arc::new(config.following().clone());
@@ -187,13 +188,28 @@ async fn async_main(config: Configure) -> anyhow::Result<()> {
 }
 
 fn main() -> anyhow::Result<()> {
+    let matches = clap::command!()
+        .args(&[
+            arg!(--config <CONFIG_FILE> "Override default configure file location")
+                .default_value("config.toml"),
+            arg!(--session <SESSION_FILE> "Override default session file location")
+                .default_value("human.session"),
+        ])
+        .get_matches();
+
     env_logger::Builder::from_default_env().init();
 
     runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
-        .block_on(async_main(Configure::new("data/config.toml")?))?;
+        .block_on(async_main(
+            Configure::new(matches.get_one::<String>("config").unwrap())?,
+            matches
+                .get_one("session")
+                .map(|s: &String| s.to_string())
+                .unwrap(),
+        ))?;
 
     Ok(())
 }
