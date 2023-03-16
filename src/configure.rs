@@ -18,11 +18,10 @@
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 mod configparser {
-    use serde_derive::Deserialize;
-    use std::path::Path;
     use crate::functions::Result;
+    use serde_derive::Deserialize;
     use std::collections::HashSet;
-
+    use std::path::Path;
 
     #[derive(Deserialize)]
     struct Telegram {
@@ -30,19 +29,19 @@ mod configparser {
         api_hash: String,
         bot_token: String,
         owner: i32,
-        api_address: Option<String>
+        api_address: Option<String>,
     }
 
     #[derive(Deserialize)]
     struct _Following {
         list: Vec<i64>,
-        duration: Option<u64>
+        duration: Option<u64>,
     }
 
     #[derive(Deserialize)]
     struct _Configure {
         telegram: Telegram,
-        follow: _Following
+        follow: _Following,
     }
 
     impl _Configure {
@@ -67,7 +66,7 @@ mod configparser {
     impl Configure {
         pub fn new<P: AsRef<Path>>(path: P) -> Result<Configure> {
             let _configure = _Configure::new(path)?;
-            Ok(Configure{
+            Ok(Configure {
                 api_id: _configure.telegram.api_id,
                 api_hash: _configure.telegram.api_hash,
                 bot_token: _configure.telegram.bot_token,
@@ -75,9 +74,9 @@ mod configparser {
                 following: _configure.follow.list.into_iter().collect(),
                 api_address: match _configure.telegram.api_address {
                     Some(address) => address,
-                    None => String::from("https://api.telegram.org")
+                    None => String::from("https://api.telegram.org"),
                 },
-                duration: _configure.follow.duration.unwrap_or(60) as u128
+                duration: _configure.follow.duration.unwrap_or(60) as u128,
             })
         }
 

@@ -17,19 +17,18 @@
  ** You should have received a copy of the GNU Affero General Public License
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-mod functions;
 mod configure;
+mod functions;
 
-use grammers_client::{Update};
-use tokio::{runtime, task};
-use tokio::sync::Mutex;
 use functions::Result;
-use std::collections::{HashMap, HashSet};
-use grammers_client::types::{Chat, Message, Media};
-use log::{error, debug, info};
-use std::sync::Arc;
+use grammers_client::types::{Chat, Media, Message};
+use grammers_client::Update;
 use kstool::prelude::get_current_timestamp;
-
+use log::{debug, error, info};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::{runtime, task};
 
 #[derive(Clone)]
 struct BotConfigure {
@@ -39,18 +38,23 @@ struct BotConfigure {
 }
 
 impl BotConfigure {
-    async fn send_message(&self, text: String) -> Result<()>{
+    async fn send_message(&self, text: String) -> Result<()> {
         let client = reqwest::Client::new();
         let post_data = functions::telegram::SendMessageParameters::new(self.owner, text);
-        client.post(format!("{}/bot{}/sendMessage", self.basic_api_address, self.bot_token).as_str())
+        client
+            .post(
+                format!(
+                    "{}/bot{}/sendMessage",
+                    self.basic_api_address, self.bot_token
+                )
+                .as_str(),
+            )
             .json(&post_data)
             .send()
             .await?;
         Ok(())
     }
 }
-
-
 
 fn build_message_string(message: &Message, chat_id: i64, user_id: i64, user_name: &str) -> String {
     // TODO: message type support
@@ -68,64 +72,55 @@ fn build_message_string(message: &Message, chat_id: i64, user_id: i64, user_name
     let message_id = message.id();
     format!(
         "[{}](tg://user?id={}) send a [{}](https://t.me/c/{}/{}) message",
-        user_name,
-        user_id,
-        type_string,
-        chat_id,
-        message_id
+        user_name, user_id, type_string, chat_id, message_id
     )
 }
 
-async fn handle_update(update: Update,
-                       special_list: HashSet<i64>,
-                       bot: &BotConfigure,
-                       lock: &Arc<Mutex<HashMap<i64, u128>>>,
-                       duration: u128
+async fn handle_update(
+    update: Update,
+    special_list: HashSet<i64>,
+    bot: &BotConfigure,
+    lock: &Arc<Mutex<HashMap<i64, u128>>>,
+    duration: u128,
 ) -> Result<()> {
-        match update {
-            Update::NewMessage(message) => {
-                match message.chat() {
-                    Chat::Group(chat) =>
-                        match message.sender() {
-                            Some(user) => {
-                                let sender = user.id();
-                                info!("Get sender id: {}", sender);
-                                if special_list.contains(&sender) {
-                                    if message.text().is_empty() && message.media().is_none() {
-                                        return Ok(())
-                                    }
-                                    let s = build_message_string(&message, chat.id(), user.id(),user.name());
-                                    {
-                                        let mut last_send = lock.lock().await;
-                                        let timestamp = last_send.get_mut(&sender).unwrap();
-                                        debug!("Last send message timestamp: {}", *timestamp);
-                                        let last_time = get_current_timestamp();
-                                        if last_time - *timestamp > duration * 1000 {
-                                            info!("Send message successful");
-                                            bot.send_message(s).await?;
-                                            *timestamp = get_current_timestamp();
-                                        }
-                                    }
-                                }
+    match update {
+        Update::NewMessage(message) => match message.chat() {
+            Chat::Group(chat) => match message.sender() {
+                Some(user) => {
+                    let sender = user.id();
+                    info!("Get sender id: {}", sender);
+                    if special_list.contains(&sender) {
+                        if message.text().is_empty() && message.media().is_none() {
+                            return Ok(());
+                        }
+                        let s = build_message_string(&message, chat.id(), user.id(), user.name());
+                        {
+                            let mut last_send = lock.lock().await;
+                            let timestamp = last_send.get_mut(&sender).unwrap();
+                            debug!("Last send message timestamp: {}", *timestamp);
+                            let last_time = get_current_timestamp();
+                            if last_time - *timestamp > duration * 1000 {
+                                info!("Send message successful");
+                                bot.send_message(s).await?;
+                                *timestamp = get_current_timestamp();
                             }
-                            _ => {}
+                        }
                     }
-                    _ => {}
                 }
-            }
+                _ => {}
+            },
             _ => {}
-        }
+        },
+        _ => {}
+    }
 
     Ok(())
 }
 
-
 async fn async_main(config: configure::Configure) -> Result<()> {
-    let client = functions::telegram::try_connect(
-        config.api_id(),
-        &config.api_hash(),
-        "data/human.session").await?;
-
+    let client =
+        functions::telegram::try_connect(config.api_id(), &config.api_hash(), "data/human.session")
+            .await?;
 
     let last_update = Arc::new(Mutex::new({
         let mut map: HashMap<i64, u128> = Default::default();
@@ -139,10 +134,10 @@ async fn async_main(config: configure::Configure) -> Result<()> {
     let owner = config.owner().to_owned();
     let duration = config.duration().to_owned();
 
-    let bot_configure = BotConfigure{
+    let bot_configure = BotConfigure {
         bot_token: config.bot_token().to_string(),
         basic_api_address: config.api_address().to_string(),
-        owner
+        owner,
     };
 
     let mut tasks = vec![];
@@ -157,24 +152,20 @@ async fn async_main(config: configure::Configure) -> Result<()> {
         tasks.push(task::spawn(async move {
             match handle_update(updates, special_list, &config, &last_update_lock, duration).await {
                 Ok(_) => {}
-                Err(e) => error!("Error handling updates: {}", e)
+                Err(e) => error!("Error handling updates: {}", e),
             }
         }));
     }
-
 
     for task in tasks {
         task.await?;
     }
 
-
     Ok(())
 }
 
 fn main() -> Result<()> {
-
-    env_logger::Builder::from_default_env()
-        .init();
+    env_logger::Builder::from_default_env().init();
 
     runtime::Builder::new_current_thread()
         .enable_all()

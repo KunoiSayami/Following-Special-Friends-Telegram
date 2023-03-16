@@ -20,13 +20,12 @@
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 pub(crate) mod telegram {
 
-    use serde_derive::Serialize;
-    use grammers_client::{Client, Config, SignInError, InitParams};
+    use crate::functions::Result;
+    use grammers_client::{Client, Config, InitParams, SignInError};
     use grammers_session::Session;
+    use serde_derive::Serialize;
     use std::env;
     use std::io::{self, BufRead as _, Write as _w};
-    use crate::functions::Result;
-
 
     fn console_prompt(message: &str) -> Result<String> {
         let stdout = io::stdout();
@@ -51,16 +50,28 @@ pub(crate) mod telegram {
     }
 
     fn get_init_params<T>(device_model: T) -> InitParams
-        where T: Into<String> {
-        InitParams{
+    where
+        T: Into<String>,
+    {
+        InitParams {
             device_model: device_model.into(),
             // https://stackoverflow.com/a/62409338
-            system_version: format!("{} {} {}", env::consts::OS, env::consts::FAMILY, env::consts::ARCH),
+            system_version: format!(
+                "{} {} {}",
+                env::consts::FAMILY,
+                env::consts::OS,
+                env::consts::ARCH
+            ),
             ..Default::default()
         }
     }
 
-    async fn _try_connect(api_id: i32, api_hash: &str, session_path: &str, bot_token: Option<&str>) -> Result<Client> {
+    async fn _try_connect(
+        api_id: i32,
+        api_hash: &str,
+        session_path: &str,
+        bot_token: Option<&str>,
+    ) -> Result<Client> {
         //let session_file_path = Path::new("data").join(format!("{}.session", session_name));
         let client = Client::connect(Config {
             session: Session::load_file_or_create(session_path.clone())?,
@@ -69,7 +80,7 @@ pub(crate) mod telegram {
             // https://stackoverflow.com/a/27841363
             params: get_init_params(option_env!("CARGO_PKG_NAME").unwrap_or("unknown")),
         })
-            .await?;
+        .await?;
 
         if !client.is_authorized().await? {
             match bot_token {
@@ -102,10 +113,7 @@ pub(crate) mod telegram {
                 Ok(_) => {}
                 Err(e) => {
                     client.sign_out_disconnect().await?;
-                    panic!(
-                        "NOTE: failed to save the session, will sign out now: {}",
-                        e
-                    );
+                    panic!("NOTE: failed to save the session, will sign out now: {}", e);
                 }
             }
         }
@@ -113,19 +121,23 @@ pub(crate) mod telegram {
         Ok(client)
     }
 
-    #[derive(Serialize)]
+    #[derive(Clone, Debug, Serialize)]
     pub struct SendMessageParameters {
         chat_id: i32,
         text: String,
-        parse_mode: String
+        parse_mode: String,
     }
 
     impl SendMessageParameters {
         pub fn new<T>(chat_id: i32, text: T) -> SendMessageParameters
-            where T: Into<String> {
-            SendMessageParameters{chat_id, text: text.into(), parse_mode: String::from("markdown")}
+        where
+            T: Into<String>,
+        {
+            SendMessageParameters {
+                chat_id,
+                text: text.into(),
+                parse_mode: String::from("markdown"),
+            }
         }
     }
-
-
 }
