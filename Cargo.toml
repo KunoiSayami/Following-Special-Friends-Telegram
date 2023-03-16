@@ -1,19 +1,21 @@
 [package]
 name = "special-friends"
-version = "1.1.0"
-authors = ["KunoiSayami <46131041+KunoiSayami@users.noreply.github.com>"]
-edition = "2018"
+version = "2.0.0"
+authors = ["KunoiSayami <i@leanhe.dev>"]
+edition = "2021"
 
 [dependencies]
+anyhow = "1.0.69"
+env_logger = "0.10.0"
 grammers-client = { git = "https://github.com/Lonami/grammers" }
 grammers-session = { git = "https://github.com/Lonami/grammers" }
 grammers-tl-gen = { git = "https://github.com/Lonami/grammers" }
 grammers-tl-types = { git = "https://github.com/Lonami/grammers" }
 kstool = "0.1.2"
 log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug"] }
+once_cell = "1.17.1"
 reqwest = { version = "0.11", features = ["socks", "serde_json", "json", "rustls-tls-webpki-roots"], default-features = false }
 serde = "1"
 serde_derive = "1.0.123"
-env_logger = "0.10.0"
 tokio = { version = "1", features = ["full"] }
 toml = "0.7.2"

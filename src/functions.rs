@@ -17,10 +17,9 @@
  ** You should have received a copy of the GNU Affero General Public License
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 pub(crate) mod telegram {
 
-    use crate::functions::Result;
+    use anyhow::Result;
     use grammers_client::{Client, Config, InitParams, SignInError};
     use grammers_session::Session;
     use serde_derive::Serialize;
@@ -123,13 +122,13 @@ pub(crate) mod telegram {
 
     #[derive(Clone, Debug, Serialize)]
     pub struct SendMessageParameters {
-        chat_id: i32,
+        chat_id: i64,
         text: String,
         parse_mode: String,
     }
 
     impl SendMessageParameters {
-        pub fn new<T>(chat_id: i32, text: T) -> SendMessageParameters
+        pub fn new<T>(chat_id: i64, text: T) -> SendMessageParameters
         where
             T: Into<String>,
         {

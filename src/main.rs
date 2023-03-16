@@ -20,40 +20,20 @@
 mod configure;
 mod functions;
 
-use functions::Result;
+use crate::configure::prelude::*;
 use grammers_client::types::{Chat, Media, Message};
 use grammers_client::Update;
 use kstool::prelude::get_current_timestamp;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 use tokio::{runtime, task};
 
-#[derive(Clone)]
-struct BotConfigure {
-    basic_api_address: String,
-    bot_token: String,
-    owner: i32,
-}
-
-impl BotConfigure {
-    async fn send_message(&self, text: String) -> Result<()> {
-        let client = reqwest::Client::new();
-        let post_data = functions::telegram::SendMessageParameters::new(self.owner, text);
-        client
-            .post(
-                format!(
-                    "{}/bot{}/sendMessage",
-                    self.basic_api_address, self.bot_token
-                )
-                .as_str(),
-            )
-            .json(&post_data)
-            .send()
-            .await?;
-        Ok(())
-    }
+#[derive(Clone, Debug)]
+enum MessageCommand {
+    Message(i64, u128, String),
+    Terminate,
 }
 
 fn build_message_string(message: &Message, chat_id: i64, user_id: i64, user_name: &str) -> String {
@@ -68,7 +48,6 @@ fn build_message_string(message: &Message, chat_id: i64, user_id: i64, user_name
     } else {
         "text"
     };
-    //let message_type = if message.media().is_none() {"text"} else {type_string};
     let message_id = message.id();
     format!(
         "[{}](tg://user?id={}) send a [{}](https://t.me/c/{}/{}) message",
@@ -78,34 +57,30 @@ fn build_message_string(message: &Message, chat_id: i64, user_id: i64, user_name
 
 async fn handle_update(
     update: Update,
-    special_list: HashSet<i64>,
-    bot: &BotConfigure,
-    lock: &Arc<Mutex<HashMap<i64, u128>>>,
-    duration: u128,
-) -> Result<()> {
+    special_list: Arc<HashSet<i64>>,
+    sender: mpsc::Sender<MessageCommand>,
+) -> anyhow::Result<()> {
     match update {
         Update::NewMessage(message) => match message.chat() {
             Chat::Group(chat) => match message.sender() {
                 Some(user) => {
-                    let sender = user.id();
-                    info!("Get sender id: {}", sender);
-                    if special_list.contains(&sender) {
-                        if message.text().is_empty() && message.media().is_none() {
-                            return Ok(());
-                        }
-                        let s = build_message_string(&message, chat.id(), user.id(), user.name());
-                        {
-                            let mut last_send = lock.lock().await;
-                            let timestamp = last_send.get_mut(&sender).unwrap();
-                            debug!("Last send message timestamp: {}", *timestamp);
-                            let last_time = get_current_timestamp();
-                            if last_time - *timestamp > duration * 1000 {
-                                info!("Send message successful");
-                                bot.send_message(s).await?;
-                                *timestamp = get_current_timestamp();
-                            }
-                        }
+                    let message_sender = user.id();
+                    debug!("Get sender id: {}", message_sender);
+                    if !special_list.contains(&message_sender)
+                        || (message.text().is_empty() && message.media().is_none())
+                    {
+                        return Ok(());
                     }
+
+                    sender
+                        .send(MessageCommand::Message(
+                            user.id(),
+                            get_current_timestamp(),
+                            build_message_string(&message, chat.id(), user.id(), user.name()),
+                        ))
+                        .await
+                        .map_err(|_| error!("Unable send message to another future"))
+                        .ok();
                 }
                 _ => {}
             },
@@ -117,12 +92,57 @@ async fn handle_update(
     Ok(())
 }
 
-async fn async_main(config: configure::Configure) -> Result<()> {
+async fn message_handler(
+    mut receiver: mpsc::Receiver<MessageCommand>,
+    mut last_send: HashMap<i64, u128>,
+) -> anyhow::Result<()> {
+    let client = reqwest::Client::new();
+    while let Some(msg) = receiver.recv().await {
+        match msg {
+            MessageCommand::Message(sender, message_timestamp, text) => {
+                let post_data = functions::telegram::SendMessageParameters::new(
+                    *BOT_OWNER.get().unwrap(),
+                    text,
+                );
+
+                let timestamp = last_send.get_mut(&sender).unwrap();
+                debug!("Last send message timestamp: {}", *timestamp);
+                let last_time = get_current_timestamp();
+                if last_time - *timestamp > *BOT_DURATION.get().unwrap() * 1000 {
+                    client
+                        .post(
+                            format!(
+                                "{}/bot{}/sendMessage",
+                                BOT_API_SERVER.get().unwrap(),
+                                BOT_TOKEN.get().unwrap(),
+                            )
+                            .as_str(),
+                        )
+                        .json(&post_data)
+                        .send()
+                        .await?;
+                    info!("Send message successful");
+                    *timestamp = message_timestamp;
+                }
+            }
+            MessageCommand::Terminate => break,
+        }
+    }
+    Ok(())
+}
+
+async fn async_main(config: Configure) -> anyhow::Result<()> {
     let client =
         functions::telegram::try_connect(config.api_id(), &config.api_hash(), "data/human.session")
             .await?;
 
-    let last_update = Arc::new(Mutex::new({
+    let hashset_list = Arc::new(config.following().clone());
+
+    let (sender, receiver) = mpsc::channel(1024);
+
+    let mut tasks = vec![];
+
+    let sender_thread = tokio::spawn(message_handler(receiver, {
         let mut map: HashMap<i64, u128> = Default::default();
         for x in config.following().clone() {
             map.insert(x, 0);
@@ -130,48 +150,50 @@ async fn async_main(config: configure::Configure) -> Result<()> {
         }
         map
     }));
-    let hashset_list = config.following().clone();
-    let owner = config.owner().to_owned();
-    let duration = config.duration().to_owned();
-
-    let bot_configure = BotConfigure {
-        bot_token: config.bot_token().to_string(),
-        basic_api_address: config.api_address().to_string(),
-        owner,
-    };
-
-    let mut tasks = vec![];
 
     while let Some(updates) = tokio::select! {
         _ = tokio::signal::ctrl_c() => Ok(None),
         result = client.next_update() => result,
     }? {
-        let special_list = hashset_list.clone();
-        let config = bot_configure.clone();
-        let last_update_lock = Arc::clone(&last_update);
+        let l = hashset_list.clone();
+        let sender = sender.clone();
         tasks.push(task::spawn(async move {
-            match handle_update(updates, special_list, &config, &last_update_lock, duration).await {
+            match handle_update(updates, l, sender).await {
                 Ok(_) => {}
                 Err(e) => error!("Error handling updates: {}", e),
             }
         }));
     }
+    sender
+        .send(MessageCommand::Terminate)
+        .await
+        .map_err(|_| error!("Unable send terminate command"))
+        .ok();
 
     for task in tasks {
         task.await?;
+    }
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            warn!("Force exit from waiting sender thread");
+            return Ok(())
+        },
+        ret = sender_thread => {
+            ret??;
+        }
     }
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_default_env().init();
 
     runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
-        .block_on(async_main(configure::Configure::new("data/config.toml")?))?;
+        .block_on(async_main(Configure::new("data/config.toml")?))?;
 
     Ok(())
 }

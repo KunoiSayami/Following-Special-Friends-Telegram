@@ -39,6 +39,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1231,8 +1237,9 @@ dependencies = [
 
 [[package]]
 name = "special-friends"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
+ "anyhow",
  "env_logger",
  "grammers-client",
  "grammers-session",
@@ -1240,6 +1247,7 @@ dependencies = [
  "grammers-tl-types",
  "kstool",
  "log",
+ "once_cell",
  "reqwest",
  "serde",
  "serde_derive",
