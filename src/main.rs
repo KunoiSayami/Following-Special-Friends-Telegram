@@ -1,5 +1,5 @@
 /*
- ** Copyright (C) 2021 KunoiSayami
+ ** Copyright (C) 2021-2025 KunoiSayami
  **
  ** This file is part of Following-Special-Friends-Telegram and is released under
  ** the AGPL v3 License: https://www.gnu.org/licenses/agpl-3.0.txt
@@ -51,8 +51,7 @@ fn build_message_string(message: &Message, chat_id: i64, user_id: i64, user_name
     };
     let message_id = message.id();
     format!(
-        "[{}](tg://user?id={}) send a [{}](https://t.me/c/{}/{}) message",
-        user_name, user_id, type_string, chat_id, message_id
+        "[{user_name}](tg://user?id={user_id}) send a [{type_string}](https://t.me/c/{chat_id}/{message_id}) message"
     )
 }
 
@@ -66,7 +65,7 @@ async fn handle_update(
             Chat::Group(chat) => match message.sender() {
                 Some(user) => {
                     let message_sender = user.id();
-                    debug!("Get sender id: {}", message_sender);
+                    debug!("Get sender id: {message_sender}");
                     if !special_list.contains(&message_sender)
                         || (message.text().is_empty() && message.media().is_none())
                     {
@@ -77,10 +76,15 @@ async fn handle_update(
                         .send(MessageCommand::Message(
                             user.id(),
                             get_current_timestamp(),
-                            build_message_string(&message, chat.id(), user.id(), user.name()),
+                            build_message_string(
+                                &message,
+                                chat.id(),
+                                user.id(),
+                                user.name().unwrap_or("N\\/A"),
+                            ),
                         ))
                         .await
-                        .map_err(|_| error!("Unable send message to another future"))
+                        .inspect_err(|_| error!("Unable send message to another future"))
                         .ok();
                 }
                 _ => {}
@@ -107,7 +111,7 @@ async fn message_handler(
                 );
 
                 let timestamp = last_send.get_mut(&sender).unwrap();
-                debug!("Last send message timestamp: {}", *timestamp);
+                debug!("Last send message timestamp: {timestamp}");
                 let last_time = get_current_timestamp();
                 if last_time - *timestamp > *BOT_DURATION.get().unwrap() * 1000 {
                     client
@@ -147,28 +151,28 @@ async fn async_main(config: Configure, session_path: String) -> anyhow::Result<(
         let mut map: HashMap<i64, u128> = Default::default();
         for x in config.following().clone() {
             map.insert(x, 0);
-            debug!("Insert {} to following list", x);
+            debug!("Insert {x} to following list");
         }
         map
     }));
 
     while let Some(updates) = tokio::select! {
         _ = tokio::signal::ctrl_c() => Ok(None),
-        result = client.next_update() => result,
+        result = client.next_update() => result.map(Some),
     }? {
         let l = hashset_list.clone();
         let sender = sender.clone();
         tasks.push(task::spawn(async move {
             match handle_update(updates, l, sender).await {
                 Ok(_) => {}
-                Err(e) => error!("Error handling updates: {}", e),
+                Err(e) => error!("Error handling updates: {e}"),
             }
         }));
     }
     sender
         .send(MessageCommand::Terminate)
         .await
-        .map_err(|_| error!("Unable send terminate command"))
+        .inspect_err(|_| error!("Unable send terminate command"))
         .ok();
 
     for task in tasks {

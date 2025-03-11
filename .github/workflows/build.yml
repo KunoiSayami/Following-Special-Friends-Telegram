@@ -6,6 +6,9 @@ on:
       - v**
   pull_request:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build:
     strategy:
@@ -16,44 +19,115 @@ jobs:
           - { os: ubuntu-latest }
           - { os: windows-latest }
 
-
     name: Build
     runs-on: ${{ matrix.job.os }}
+    env:
+      RUST_BACKTRACE: full
+
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
-      - name: Rename binary
-        id: rename
+      - uses: actions/checkout@v4
+      - name: Determine Binary Name
+        id: determine-os
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
-            BIN='special-friends_linux_amd64'
-            mv target/release/special-friends target/release/$BIN
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            BIN='special-friends_darwin_amd64'
-            mv target/release/special-friends target/release/$BIN
-          else
-            BIN='special-friends_windows_amd64.exe'
-            mv target/release/special-friends.exe target/release/$BIN
+            BINARY=special-friends_linux_amd64
+            PROTOC_BINARY=/usr/bin/protoc
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            BINARY=special-friends_windows_amd64.exe
+            PROTOC_BINARY=./bin/protoc.exe
+          else # macOS
+            #if [ "$(uname --machine)" == "arm64" ]; then
+              BINARY=special-friends_darwin_arm64
+            #else
+              #BINARY=special-friends_darwin_amd64
+            #fi
+            #echo "arch=$(uname --machine)" >> $GITHUB_OUTPUT
+            PROTOC_BINARY=$PWD/bin/protoc
           fi
-          echo "::set-output name=bin::target/release/$BIN"
-      - uses: actions/upload-artifact@v2
+          echo "binary_name=$BINARY" >> $GITHUB_OUTPUT
+      #- name: Environment
+      #  run: |
+      #    git submodule update --init --recursive
+      - name: Cache Cargo packages
+        id: cache-cargo
+        uses: actions/cache@v4
         with:
-          name: artifact
+          key: ${{ runner.os }}-cargo
           path: |
-            target/release/special-friends_*
+            ~/.cargo
+            ~/.rustup
+            $PWD/target
+      - if: ${{ steps.cache-cargo.outputs.cache-hit != 'true' }}
+        name: Update rust
+        run: rustup update
+      - name: Build binary
+        run: |
+          cargo build --profile release
+      - name: Rename binary
+        id: rename
+        shell: bash
+        env:
+          BINARY_NAME: ${{ steps.determine-os.outputs.binary_name }}
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            mv target/release/special-friends.exe target/release/$BINARY_NAME
+          else
+            mv target/release/special-friends target/release/$BINARY_NAME
+          fi
+          echo "bin=target/release/$BINARY_NAME" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4.3.3
+        with:
+          name: ${{ steps.determine-os.outputs.binary_name }}
+          path: target/release/${{ steps.determine-os.outputs.binary_name }}
+
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: ${{ steps.rename.outputs.bin }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build_aarch64:
+    name: Cross build
+    runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: full
+
+    steps:
+      - uses: actions/checkout@v4
+      #- name: Environment
+      #  run: |
+      #    git submodule update --init --recursive
+      - name: Cache Cargo packages
+        id: cache-cargo
+        uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-cargo-cross
+          path: |
+            ~/.cargo
+            ~/.rustup
+            ~/work/special-friends/special-friends/target
+      - if: ${{ steps.cache-cargo.outputs.cache-hit != 'true' }}
+        name: Update rust
+        run: rustup update && rustup target install aarch64-unknown-linux-musl
+      - name: Install cross
+        run: cargo install cross
+      - name: Build binary
+        env:
+          PROTOC: /usr/bin/protoc
+        run: |
+          cross build --target aarch64-unknown-linux-musl --profile release
+      - run: mv target/aarch64-unknown-linux-musl/release/special-friends target/aarch64-unknown-linux-musl/release/special-friends_linux_aarch64
+      - uses: actions/upload-artifact@v4.3.3
+        with:
+          name: special-friends_linux_aarch64
+          path: target/aarch64-unknown-linux-musl/release/special-friends_linux_aarch64
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/aarch64-unknown-linux-musl/release/special-friends_linux_aarch64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

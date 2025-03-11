@@ -1,5 +1,5 @@
 /*
- ** Copyright (C) 2021 KunoiSayami
+ ** Copyright (C) 2021-2025 KunoiSayami
  **
  ** This file is part of Following-Special-Friends-Telegram and is released under
  ** the AGPL v3 License: https://www.gnu.org/licenses/agpl-3.0.txt
@@ -19,7 +19,7 @@
  */
 mod configparser {
     use once_cell::sync::OnceCell;
-    use serde_derive::Deserialize;
+    use serde::Deserialize;
     use std::collections::HashSet;
     use std::path::Path;
 
@@ -38,22 +38,22 @@ mod configparser {
     }
 
     #[derive(Deserialize)]
-    struct _Following {
+    struct PrivFollowing {
         list: Vec<i64>,
         duration: Option<u64>,
     }
 
     #[derive(Deserialize)]
-    struct _Configure {
+    struct PrivConfigure {
         telegram: Telegram,
-        follow: _Following,
+        follow: PrivFollowing,
     }
 
-    impl _Configure {
-        fn new<P: AsRef<Path>>(path: P) -> anyhow::Result<_Configure> {
+    impl PrivConfigure {
+        fn new<P: AsRef<Path>>(path: P) -> anyhow::Result<PrivConfigure> {
             let contents = std::fs::read_to_string(path)?;
             let contents_str = contents.as_str();
-            let configure: _Configure = toml::from_str(contents_str)?;
+            let configure: PrivConfigure = toml::from_str(contents_str)?;
             Ok(configure)
         }
     }
@@ -66,7 +66,7 @@ mod configparser {
 
     impl Configure {
         pub fn new<P: AsRef<Path>>(path: P) -> anyhow::Result<Configure> {
-            let _configure = _Configure::new(path)?;
+            let _configure = PrivConfigure::new(path)?;
             BOT_OWNER.set(_configure.telegram.owner).unwrap();
             BOT_API_SERVER
                 .set(

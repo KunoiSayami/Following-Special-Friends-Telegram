@@ -1,5 +1,5 @@
 /*
- ** Copyright (C) 2021 KunoiSayami
+ ** Copyright (C) 2021-2025 KunoiSayami
  **
  ** This file is part of Following-Special-Friends-Telegram and is released under
  ** the AGPL v3 License: https://www.gnu.org/licenses/agpl-3.0.txt
@@ -22,7 +22,7 @@ pub(crate) mod telegram {
     use anyhow::Result;
     use grammers_client::{Client, Config, InitParams, SignInError};
     use grammers_session::Session;
-    use serde_derive::Serialize;
+    use serde::Serialize;
     use std::env;
     use std::io::{self, BufRead as _, Write as _w};
 
@@ -73,7 +73,7 @@ pub(crate) mod telegram {
     ) -> Result<Client> {
         //let session_file_path = Path::new("data").join(format!("{}.session", session_name));
         let client = Client::connect(Config {
-            session: Session::load_file_or_create(session_path.clone())?,
+            session: Session::load_file_or_create(session_path)?,
             api_id,
             api_hash: api_hash.to_string(),
             // https://stackoverflow.com/a/27841363
@@ -85,13 +85,13 @@ pub(crate) mod telegram {
             match bot_token {
                 None => {
                     let phone = console_prompt("Enter your phone number: ")?;
-                    let token = client.request_login_code(&phone, api_id, &api_hash).await?;
+                    let token = client.request_login_code(&phone).await?;
                     let code = console_prompt("Enter the code: ")?;
                     let signed_in = client.sign_in(&token, &code).await;
                     match signed_in {
                         Err(SignInError::PasswordRequired(password_token)) => {
                             let hint = password_token.hint().unwrap();
-                            let prompt_message = format!("Enter the password (hint: {}): ", &hint);
+                            let prompt_message = format!("Enter the password (hint: {hint}): ");
                             let password = console_prompt(prompt_message.as_str())?;
 
                             client
@@ -99,21 +99,18 @@ pub(crate) mod telegram {
                                 .await?;
                         }
                         Ok(_) => (),
-                        Err(e) => panic!("{}", e),
+                        Err(e) => panic!("{e}"),
                     };
                     println!("Signed in!");
                 }
                 Some(token) => {
-                    client.bot_sign_in(token, api_id, api_hash).await?;
+                    client.bot_sign_in(token).await?;
                 }
             }
 
-            match client.session().save_to_file(session_path) {
-                Ok(_) => {}
-                Err(e) => {
-                    client.sign_out_disconnect().await?;
-                    panic!("NOTE: failed to save the session, will sign out now: {}", e);
-                }
+            if let Err(e) = client.session().save_to_file(session_path) {
+                client.sign_out_disconnect().await?;
+                panic!("NOTE: failed to save the session, will sign out now: {e}");
             }
         }
 
