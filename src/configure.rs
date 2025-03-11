@@ -18,15 +18,15 @@
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 mod configparser {
-    use once_cell::sync::OnceCell;
     use serde::Deserialize;
     use std::collections::HashSet;
     use std::path::Path;
+    use std::sync::OnceLock;
 
-    pub static BOT_TOKEN: OnceCell<String> = OnceCell::new();
-    pub static BOT_API_SERVER: OnceCell<String> = OnceCell::new();
-    pub static BOT_OWNER: OnceCell<i64> = OnceCell::new();
-    pub static BOT_DURATION: OnceCell<u128> = OnceCell::new();
+    pub static BOT_TOKEN: OnceLock<String> = OnceLock::new();
+    pub static BOT_API_SERVER: OnceLock<String> = OnceLock::new();
+    pub static BOT_OWNER: OnceLock<i64> = OnceLock::new();
+    pub static BOT_DURATION: OnceLock<u128> = OnceLock::new();
 
     #[derive(Deserialize)]
     struct Telegram {
@@ -100,5 +100,5 @@ mod configparser {
 }
 
 pub mod prelude {
-    pub use super::configparser::{Configure, BOT_API_SERVER, BOT_DURATION, BOT_OWNER, BOT_TOKEN};
+    pub use super::configparser::{BOT_API_SERVER, BOT_DURATION, BOT_OWNER, BOT_TOKEN, Configure};
 }

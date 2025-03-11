@@ -1623,7 +1623,6 @@ dependencies = [
  "grammers-tl-types",
  "kstool",
  "log",
- "once_cell",
  "reqwest",
  "serde",
  "tokio",
